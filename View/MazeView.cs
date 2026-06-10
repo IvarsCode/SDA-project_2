@@ -45,6 +45,9 @@ namespace View
                         case 4:
                             Console.Write("⚽️");   //visited
                             break;
+                        case 5:
+                            Console.Write("🔴");   //explored dead-end (not on shortest path)
+                            break;
                         default:
                             break;
                     }
@@ -108,6 +111,9 @@ namespace View
                                     Console.Write("🐈");
                             }
                             //Console.Write("⚽️");   //visited
+                            break;
+                        case 5:
+                            Console.Write("🔴");   //explored dead-end (not on shortest path)
                             break;
                         default:
                             break;
@@ -181,6 +187,9 @@ namespace View
                                 Console.Write("🏃");
                             }
                             break;
+                        case 5:
+                            Console.Write("🔴");    //explored dead-end (not on shortest path)
+                            break;
                         default:
                             break;
                     }
@@ -231,15 +240,24 @@ namespace View
                 Console.Clear();
 
                 var currPos = toBeShownPositions.Dequeue();
+
+                // Sentinel: transition from exploration phase to shortest-path replay
+                if (currPos[0] == -1 && currPos[1] == -1)
+                {
+                    var pathSet = new HashSet<(int, int)>(toBeShownPositions.Select(p => (p[0], p[1])));
+                    foreach (var ep in shownPositions)
+                    {
+                        if (!pathSet.Contains((ep[0], ep[1])) && array[ep[0], ep[1]] != 1 && array[ep[0], ep[1]] != 2)
+                        {
+                            array[ep[0], ep[1]] = 5;               // 🔴 dead-end in MazeMDArray
+                            maze.MazeArray[ep[0]][ep[1]] = 5;      // 🔴 dead-end in MazeArray
+                        }
+                    }
+                    shownPositions = new Queue<int[]>();
+                    continue;
+                }
+
                 shownPositions.Enqueue(currPos);
-
-                //Marking strategy:
-
-                // if (array[currPos[0], currPos[1]] == 2)
-                //     array[currPos[0], currPos[1]] = 10;
-                // else
-                //     array[currPos[0], currPos[1]] = 4;
-
 
                 // Loop over the elements of the maze array
                 // and display as characters.
@@ -252,7 +270,7 @@ namespace View
                             case -1:
                                 Console.Write("🟦");   //walls
                                 break;
-                            case 1:                    //begin 
+                            case 1:                    //begin
                                 if (currPos[0] == rowIdx && currPos[1] == colIdx)
                                     Console.Write("⚽️");
                                 else
@@ -262,7 +280,7 @@ namespace View
                                 if (currPos[0] == rowIdx && currPos[1] == colIdx)
                                     Console.Write("🏅");    //completed
                                 else
-                                    Console.Write("🍦");    //end                           
+                                    Console.Write("🍦");    //end
                                 break;
                             case 0:                     //not visited or visited in a not marked array
                                 if (currPos[0] == rowIdx && currPos[1] == colIdx)
@@ -276,7 +294,7 @@ namespace View
                                 else
                                     Console.Write("  ");
                                 break;
-                            //Marking strategy 
+                            //Marking strategy
                             case 10:
                                 Console.Write("🏅");    //completed
                                 break;
@@ -289,6 +307,9 @@ namespace View
                                 {
                                     Console.Write("🏃");
                                 }
+                                break;
+                            case 5:
+                                Console.Write("🔴");    //explored dead-end (not on shortest path)
                                 break;
                             default:
                                 break;
@@ -304,6 +325,11 @@ namespace View
                 Thread.Sleep(timeInterval);
                 //Console.Clear();
             }
+
+            // Reset dead-end markers so the maze is clean for the next run
+            for (int r = 0; r < array.GetLength(0); r++)
+                for (int c = 0; c < array.GetLength(1); c++)
+                    if (array[r, c] == 5) { array[r, c] = 0; maze.MazeArray[r][c] = 0; }
         }
 
         public void DisplayMaze(Maze maze, string[] symbolsArr, int timeInterval, Queue<int[]> visitedPositions, PathFinderType algType = PathFinderType.Manual)
@@ -321,14 +347,24 @@ namespace View
                 Console.Clear();
 
                 var currPos = toBeShownPositions.Dequeue();
+
+                // Sentinel: transition from exploration phase to shortest-path replay
+                if (currPos[0] == -1 && currPos[1] == -1)
+                {
+                    var pathSet = new HashSet<(int, int)>(toBeShownPositions.Select(p => (p[0], p[1])));
+                    foreach (var ep in shownPositions)
+                    {
+                        if (!pathSet.Contains((ep[0], ep[1])) && array[ep[0], ep[1]] != 1 && array[ep[0], ep[1]] != 2)
+                        {
+                            array[ep[0], ep[1]] = 5;               // 🔴 dead-end in MazeMDArray
+                            maze.MazeArray[ep[0]][ep[1]] = 5;      // 🔴 dead-end in MazeArray
+                        }
+                    }
+                    shownPositions = new Queue<int[]>();
+                    continue;
+                }
+
                 shownPositions.Enqueue(currPos);
-
-                //Marking strategy:
-
-                // if (array[currPos[0], currPos[1]] == 2)
-                //     array[currPos[0], currPos[1]] = 10;
-                // else
-                //     array[currPos[0], currPos[1]] = 4;
 
                 Console.ForegroundColor = ConsoleColor.DarkRed;
                 Console.WriteLine($"\n\n{String.Concat(Enumerable.Repeat("🟨", maze.MazeMDArray.GetLength(1) / 2 - algType.ToString().Length / 3))}{"  " + algType + "  "}{String.Concat(Enumerable.Repeat("🟨", maze.MazeMDArray.GetLength(1) / 2 - algType.ToString().Length / 3))}");
@@ -347,7 +383,7 @@ namespace View
                             case -1:
                                 Console.Write("🟦");   //walls
                                 break;
-                            case 1:                    //begin 
+                            case 1:                    //begin
                                 if (currPos[0] == rowIdx && currPos[1] == colIdx)
                                     Console.Write("⚽️");
                                 else
@@ -357,7 +393,7 @@ namespace View
                                 if (currPos[0] == rowIdx && currPos[1] == colIdx)
                                     Console.Write("🏅");    //completed
                                 else
-                                    Console.Write("🍦");    //end                           
+                                    Console.Write("🍦");    //end
                                 break;
                             case 0:                     //not visited or visited in a not marked array
                                 if (currPos[0] == rowIdx && currPos[1] == colIdx)
@@ -371,7 +407,7 @@ namespace View
                                 else
                                     Console.Write("  ");
                                 break;
-                            //Marking strategy 
+                            //Marking strategy
                             case 10:
                                 Console.Write("🏅");    //completed
                                 break;
@@ -384,6 +420,9 @@ namespace View
                                 {
                                     Console.Write("🏃");
                                 }
+                                break;
+                            case 5:
+                                Console.Write("🔴");    //explored dead-end (not on shortest path)
                                 break;
                             default:
                                 break;
@@ -399,6 +438,11 @@ namespace View
                 Thread.Sleep(timeInterval);
                 //Console.Clear();
             }
+
+            // Reset dead-end markers so the maze is clean for the next run
+            for (int r = 0; r < array.GetLength(0); r++)
+                for (int c = 0; c < array.GetLength(1); c++)
+                    if (array[r, c] == 5) { array[r, c] = 0; maze.MazeArray[r][c] = 0; }
         }
 
         public string[] generateSymbols(int spaces)
