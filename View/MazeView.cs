@@ -30,7 +30,7 @@ namespace View
                             Console.Write("🟦");   //walls
                             break;
                         case 1:
-                            Console.Write("🏠");   //begin 
+                            Console.Write("🏠");   //begin
                             break;
                         case 2:
                             Console.Write("🍦");   //end
@@ -79,7 +79,7 @@ namespace View
                         case -1:
                             Console.Write("🟦");   //walls
                             break;
-                        case 1:                    //begin 
+                        case 1:                    //begin
                             if (currPos[0] == rowIdx && currPos[1] == colIdx)
                                 Console.Write("⚽️");
                             else
@@ -153,7 +153,7 @@ namespace View
                         case -1:
                             Console.Write("🟦");   //walls
                             break;
-                        case 1:                    //begin 
+                        case 1:                    //begin
                                                    //if (currPos[0] == rowIdx && currPos[1] == colIdx)
                                                    //    Console.Write("⚽️");
                                                    //else
@@ -163,7 +163,7 @@ namespace View
                             if (currPos[0] == rowIdx && currPos[1] == colIdx)
                                 Console.Write("🏅");    //completed
                             else
-                                Console.Write("🍦");    //end     
+                                Console.Write("🍦");    //end
                             break;
                         case 0:                     //not visited
                             if (currPos[0] == rowIdx && currPos[1] == colIdx)
@@ -227,11 +227,13 @@ namespace View
 
         public void DisplayMaze(Maze maze, string[] symbolsArr, int timeInterval, Queue<int[]> visitedPositions)
         {
-
             var array = maze.MazeMDArray;
 
             var toBeShownPositions = new Queue<int[]>(visitedPositions);
-            var shownPositions = new Queue<int[]>();
+            // List tracks insertion order (= snake body order from tail to head)
+            var shownPositions = new List<int[]>();
+            // Dict maps position → snake index for O(1) lookup
+            var shownIndex = new Dictionary<(int, int), int>();
 
             while (toBeShownPositions.Count > 0)
             {
@@ -253,11 +255,18 @@ namespace View
                             maze.MazeArray[ep[0]][ep[1]] = 5;      // 🔴 dead-end in MazeArray
                         }
                     }
-                    shownPositions = new Queue<int[]>();
+                    // Reset snake for path phase
+                    shownPositions = new List<int[]>();
+                    shownIndex = new Dictionary<(int, int), int>();
                     continue;
                 }
 
-                shownPositions.Enqueue(currPos);
+                // Add to snake body (tail = first added = index 0, head = last added)
+                if (!shownIndex.ContainsKey((currPos[0], currPos[1])))
+                {
+                    shownIndex[(currPos[0], currPos[1])] = shownPositions.Count;
+                    shownPositions.Add(currPos);
+                }
 
                 // Loop over the elements of the maze array
                 // and display as characters.
@@ -265,32 +274,35 @@ namespace View
                 {
                     for (int colIdx = 0; colIdx < array.GetLength(1); colIdx++)
                     {
+                        bool isCurrPos = currPos[0] == rowIdx && currPos[1] == colIdx;
+                        bool isInSnake = shownIndex.TryGetValue((rowIdx, colIdx), out int snakeIdx);
+                        // Afstand tot kop: cel net achter kop = 0, daarna 1, 2, ... → scrollt per stap
+                        int distFromHead = shownPositions.Count - 1 - snakeIdx;
+
                         switch (array[rowIdx, colIdx])
                         {
                             case -1:
                                 Console.Write("🟦");   //walls
                                 break;
                             case 1:                    //begin
-                                if (currPos[0] == rowIdx && currPos[1] == colIdx)
+                                if (isCurrPos)
                                     Console.Write("⚽️");
+                                else if (isInSnake)
+                                    Console.Write(symbolsArr[distFromHead % symbolsArr.Length]);
                                 else
                                     Console.Write("🏠");
                                 break;
                             case 2:
-                                if (currPos[0] == rowIdx && currPos[1] == colIdx)
+                                if (isCurrPos)
                                     Console.Write("🏅");    //completed
                                 else
                                     Console.Write("🍦");    //end
                                 break;
                             case 0:                     //not visited or visited in a not marked array
-                                if (currPos[0] == rowIdx && currPos[1] == colIdx)
-                                {
+                                if (isCurrPos)
                                     Console.Write("⚽️");
-                                }
-                                else if (shownPositions.Any(_ => _[0] == rowIdx && _[1] == colIdx))
-                                {
-                                    Console.Write("🏃");
-                                }
+                                else if (isInSnake)
+                                    Console.Write(symbolsArr[distFromHead % symbolsArr.Length]);
                                 else
                                     Console.Write("  ");
                                 break;
@@ -299,14 +311,10 @@ namespace View
                                 Console.Write("🏅");    //completed
                                 break;
                             case 4:
-                                if (currPos[0] == rowIdx && currPos[1] == colIdx)
-                                {
+                                if (isCurrPos)
                                     Console.Write("⚽️");
-                                }
-                                else
-                                {
-                                    Console.Write("🏃");
-                                }
+                                else if (isInSnake)
+                                    Console.Write(symbolsArr[distFromHead % symbolsArr.Length]);
                                 break;
                             case 5:
                                 Console.Write("🔴");    //explored dead-end (not on shortest path)
@@ -323,7 +331,6 @@ namespace View
                 Console.WriteLine();
 
                 Thread.Sleep(timeInterval);
-                //Console.Clear();
             }
 
             // Reset dead-end markers so the maze is clean for the next run
@@ -334,11 +341,13 @@ namespace View
 
         public void DisplayMaze(Maze maze, string[] symbolsArr, int timeInterval, Queue<int[]> visitedPositions, PathFinderType algType = PathFinderType.Manual)
         {
-
             var array = maze.MazeMDArray;
 
             var toBeShownPositions = new Queue<int[]>(visitedPositions);
-            var shownPositions = new Queue<int[]>();
+            // List tracks insertion order (= snake body order from tail to head)
+            var shownPositions = new List<int[]>();
+            // Dict maps position → snake index for O(1) lookup
+            var shownIndex = new Dictionary<(int, int), int>();
 
             while (toBeShownPositions.Count > 0)
             {
@@ -360,11 +369,18 @@ namespace View
                             maze.MazeArray[ep[0]][ep[1]] = 5;      // 🔴 dead-end in MazeArray
                         }
                     }
-                    shownPositions = new Queue<int[]>();
+                    // Reset snake for path phase
+                    shownPositions = new List<int[]>();
+                    shownIndex = new Dictionary<(int, int), int>();
                     continue;
                 }
 
-                shownPositions.Enqueue(currPos);
+                // Add to snake body (tail = first added = index 0, head = last added)
+                if (!shownIndex.ContainsKey((currPos[0], currPos[1])))
+                {
+                    shownIndex[(currPos[0], currPos[1])] = shownPositions.Count;
+                    shownPositions.Add(currPos);
+                }
 
                 Console.ForegroundColor = ConsoleColor.DarkRed;
                 Console.WriteLine($"\n\n{String.Concat(Enumerable.Repeat("🟨", maze.MazeMDArray.GetLength(1) / 2 - algType.ToString().Length / 3))}{"  " + algType + "  "}{String.Concat(Enumerable.Repeat("🟨", maze.MazeMDArray.GetLength(1) / 2 - algType.ToString().Length / 3))}");
@@ -378,32 +394,35 @@ namespace View
                 {
                     for (int colIdx = 0; colIdx < array.GetLength(1); colIdx++)
                     {
+                        bool isCurrPos = currPos[0] == rowIdx && currPos[1] == colIdx;
+                        bool isInSnake = shownIndex.TryGetValue((rowIdx, colIdx), out int snakeIdx);
+                        // Afstand tot kop: cel net achter kop = 0, daarna 1, 2, ... → scrollt per stap
+                        int distFromHead = shownPositions.Count - 1 - snakeIdx;
+
                         switch (array[rowIdx, colIdx])
                         {
                             case -1:
                                 Console.Write("🟦");   //walls
                                 break;
                             case 1:                    //begin
-                                if (currPos[0] == rowIdx && currPos[1] == colIdx)
+                                if (isCurrPos)
                                     Console.Write("⚽️");
+                                else if (isInSnake)
+                                    Console.Write(symbolsArr[distFromHead % symbolsArr.Length]);
                                 else
                                     Console.Write("🏠");
                                 break;
                             case 2:
-                                if (currPos[0] == rowIdx && currPos[1] == colIdx)
+                                if (isCurrPos)
                                     Console.Write("🏅");    //completed
                                 else
                                     Console.Write("🍦");    //end
                                 break;
                             case 0:                     //not visited or visited in a not marked array
-                                if (currPos[0] == rowIdx && currPos[1] == colIdx)
-                                {
+                                if (isCurrPos)
                                     Console.Write("⚽️");
-                                }
-                                else if (shownPositions.Any(_ => _[0] == rowIdx && _[1] == colIdx))
-                                {
-                                    Console.Write("🏃");
-                                }
+                                else if (isInSnake)
+                                    Console.Write(symbolsArr[distFromHead % symbolsArr.Length]);
                                 else
                                     Console.Write("  ");
                                 break;
@@ -412,14 +431,10 @@ namespace View
                                 Console.Write("🏅");    //completed
                                 break;
                             case 4:
-                                if (currPos[0] == rowIdx && currPos[1] == colIdx)
-                                {
+                                if (isCurrPos)
                                     Console.Write("⚽️");
-                                }
-                                else
-                                {
-                                    Console.Write("🏃");
-                                }
+                                else if (isInSnake)
+                                    Console.Write(symbolsArr[distFromHead % symbolsArr.Length]);
                                 break;
                             case 5:
                                 Console.Write("🔴");    //explored dead-end (not on shortest path)
@@ -436,7 +451,6 @@ namespace View
                 Console.WriteLine();
 
                 Thread.Sleep(timeInterval);
-                //Console.Clear();
             }
 
             // Reset dead-end markers so the maze is clean for the next run
@@ -445,36 +459,18 @@ namespace View
                     if (array[r, c] == 5) { array[r, c] = 0; maze.MazeArray[r][c] = 0; }
         }
 
+        // Kiest 🐕/🐈/🦖 in willekeurige volgorde; de scrollende afstand-tot-kop formule
+        // zorgt voor het slang-effect zonder dat de volgorde voorspelbaar herhaalt
         public string[] generateSymbols(int spaces)
         {
+            var emojis = new string[] { "🐕", "🐈", "🦖" };
             var rnd = new Random();
-            var symbols = new string[2 * spaces];
-            for (int i = 0; i < 2 * spaces; i++)
+            for (int i = emojis.Length - 1; i > 0; i--)
             {
-                /*
-                    if(i < 10)
-                        symbols[i] = ":" + i;
-                    else
-                        symbols[i] = (i % 100) < 10 ? ":" + (i % 100) : (i % 100) + "";
-
-                */
-                if (rnd.NextDouble() < 0.3)
-                {
-                    symbols[i] = "🦖";
-                }
-
-                else if (rnd.NextDouble() < 0.7)
-                {
-                    symbols[i] = "🐈";
-                }
-
-                else
-                {
-                    symbols[i] = "🦕";
-                }
+                int j = rnd.Next(i + 1);
+                (emojis[i], emojis[j]) = (emojis[j], emojis[i]);
             }
-
-            return symbols;
+            return emojis;
         }
 
         public void DisplaySuccess(bool success, string msg, int timeInterval)

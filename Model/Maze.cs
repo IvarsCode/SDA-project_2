@@ -20,6 +20,7 @@ namespace Model
         public Maze() => GenerateMaze();
         public Maze(bool automatic = true) { if (automatic) GenerateMaze(); else GenerateFromText(MazeGrids.mazeText); }
         public Maze(int rows, int cols) { if (rows <= 0 && cols <= 0) GenerateFromText(MazeGrids.mazeText); else GenerateMaze(rows, cols); }
+        public Maze(int rows, int cols, bool useDFS) => GenerateMaze(rows, cols, useDFS);
         public Maze(string lines) => GenerateFromText(lines);
 
         void GenerateFromText(string lines)
@@ -28,15 +29,122 @@ namespace Model
             MazeMDArray = ToMazeMDArray(lines);
         }
 
-        void GenerateMaze(int rows = 20, int cols = 40)
+        void GenerateMaze(int rows = 20, int cols = 40, bool useDFS = false)
         {
-            if (rows < 4 || cols < 4) { rows = 20; cols = 40; }
-            if (rows % 2 != 0) { rows++; }
-            if (cols % 2 != 0) { cols++; }
+            if (rows < 5) rows = 21;
+            if (cols < 5) cols = 41;
+            // Odd dimensions zodat rand-rijen/-kolommen altijd muren zijn
+            if (rows % 2 == 0) rows++;
+            if (cols % 2 == 0) cols++;
 
-            //ToDo...
+            // Alles beginnen als muur (-1)
+            MazeArray = new int[rows][];
+            MazeMDArray = new int[rows, cols];
+            for (int r = 0; r < rows; r++)
+            {
+                MazeArray[r] = new int[cols];
+                for (int c = 0; c < cols; c++)
+                {
+                    MazeArray[r][c] = -1;
+                    MazeMDArray[r, c] = -1;
+                }
+            }
 
-            GenerateFromText(MazeGrids.mazeText); //remove this line and implement the task
+            // Kamercellen openen: oneven rij én oneven kolom, binnen de rand
+            for (int r = 1; r < rows - 1; r += 2)
+                for (int c = 1; c < cols - 1; c += 2)
+                    SetCell(r, c, 0);
+
+            if (useDFS)
+                GenerateDFS(rows, cols);
+            else
+                GenerateBinaryTree(rows, cols);
+
+            // Start linksboven, einde rechtsonder
+            Begin = new int[] { 1, 1 };
+            SetCell(1, 1, 1);
+
+            End = new int[] { rows - 2, cols - 2 };
+            SetCell(rows - 2, cols - 2, 2);
+        }
+
+        // Schrijft waarde naar zowel MazeArray als MazeMDArray
+        void SetCell(int r, int c, int value)
+        {
+            MazeArray[r][c] = value;
+            MazeMDArray[r, c] = value;
+        }
+
+        // Binary Tree algoritme: elke kamer verbindt willekeurig oost of zuid
+        // Eenvoudig maar met diagonale bias (NW→SE richting altijd vrij)
+        void GenerateBinaryTree(int rows, int cols)
+        {
+            var rnd = new Random();
+            for (int r = 1; r < rows - 1; r += 2)
+            {
+                for (int c = 1; c < cols - 1; c += 2)
+                {
+                    bool canEast  = c + 2 <= cols - 2;
+                    bool canSouth = r + 2 <= rows - 2;
+
+                    if (canEast && canSouth)
+                    {
+                        if (rnd.Next(2) == 0) SetCell(r, c + 1, 0);  // muur oost open
+                        else                  SetCell(r + 1, c, 0);  // muur zuid open
+                    }
+                    else if (canEast)  SetCell(r, c + 1, 0);
+                    else if (canSouth) SetCell(r + 1, c, 0);
+                }
+            }
+        }
+
+        // Recursive Backtracker (iteratieve DFS): bezoekt elke kamer via random buren
+        // Produceert mazes met lange kronkelende gangen en weinig dode gangen
+        void GenerateDFS(int rows, int cols)
+        {
+            var rnd = new Random();
+            bool[][] visited = new bool[rows][];
+            for (int r = 0; r < rows; r++)
+                visited[r] = new bool[cols];
+
+            // [dRij, dKol, muurrij, muurkol] naar buurkamer
+            int[][] dirs = {
+                new int[] {  0,  2,  0,  1 },  // oost
+                new int[] {  0, -2,  0, -1 },  // west
+                new int[] {  2,  0,  1,  0 },  // zuid
+                new int[] { -2,  0, -1,  0 },  // noord
+            };
+
+            var stack = new Stack<int[]>();
+            visited[1][1] = true;
+            stack.Push(new int[] { 1, 1 });
+
+            while (stack.Count > 0)
+            {
+                int[] curr = stack.Peek();
+                int r = curr[0], c = curr[1];
+
+                // Verzamel onbezochte buurkamers
+                var candidates = new List<int[]>();
+                foreach (var d in dirs)
+                {
+                    int nr = r + d[0], nc = c + d[1];
+                    if (nr > 0 && nr < rows - 1 && nc > 0 && nc < cols - 1 && !visited[nr][nc])
+                        candidates.Add(new int[] { nr, nc, r + d[2], c + d[3] });
+                }
+
+                if (candidates.Count > 0)
+                {
+                    var chosen = candidates[rnd.Next(candidates.Count)];
+                    SetCell(chosen[2], chosen[3], 0);  // muur tussen kamers open
+                    visited[chosen[0]][chosen[1]] = true;
+                    stack.Push(new int[] { chosen[0], chosen[1] });
+                }
+                else
+                {
+                    stack.Pop();  // backtrack: geen onbezochte buren meer
+                }
+            }
         }
 
         int[][] ToMazeArray(string maze)
@@ -58,6 +166,7 @@ namespace Model
                     switch (line[colIdx])
                     {
                         case 'x':
+                        case '#':
                             row[colIdx] = -1;  //walls
                             break;
                         case '1':
@@ -65,7 +174,7 @@ namespace Model
                             Begin = [rowIdx, colIdx];
                             break;
                         case '2':
-                            row[colIdx] = 2;   //end 
+                            row[colIdx] = 2;   //end
                             End = [rowIdx, colIdx];
                             break;
                         default:
@@ -112,6 +221,7 @@ namespace Model
                     switch (line[colIdx])
                     {
                         case 'x':
+                        case '#':
                             outArray[rowIdx, colIdx] = -1;  //walls
                             break;
                         case '1':
@@ -119,7 +229,7 @@ namespace Model
                             Begin = [rowIdx, colIdx];
                             break;
                         case '2':
-                            outArray[rowIdx, colIdx] = 2;   //end 
+                            outArray[rowIdx, colIdx] = 2;   //end
                             End = [rowIdx, colIdx];
                             break;
                         default:
@@ -188,17 +298,42 @@ namespace Model
 
     public static class MazeGrids
     {
+        //         public static string mazeText = @"
+        // xxxxxx1xxxxxxxxxxxxxxxxxxxxxxx.
+        //  x   x   x                    .
+        // xx2x xxx   x xxxxxxxx    x xx .
+        // x  x xxxxxxx xxxxxxxxxxxxx xxx.
+        //  x x xx      x                .
+        // x  x xx xxxxx  x xxxx xxxxx  x.
+        // xx    x xxx   xx xxx  xxx   xx.
+        // xxx   xxx   x xxxx   xx   x xx.
+        // xx     xx   x xxxx   xx   x xx.
+        // xxxx    xxxxx xx xxxx xxxxx xx.
+        // xx            xx            xx.";
+
+
+
         public static string mazeText = @"
-xxxxxx1xxxxxxxxxxxxxxxxxxxxxxx.
- x   x   x                    .
-xx2x xxx   x xxxxxxxx    x xx .
-x  x xxxxxxx xxxxxxxxxxxxx xxx.
- x x xx      x                .
-x  x xx xxxxx  x xxxx xxxxx  x.
-xx    x xxx   xx xxx  xxx   xx.
-xxx   xxx   x xxxx   xx   x xx.
-xx     xx   x xxxx   xx   x xx.
-xxxx    xxxxx xx xxxx xxxxx xx.
-xx            xx            xx.";
+###################################################
+#1#   #                 #           #   #         #
+# # # # ############# # # ### ####### # # # ##### #
+# # #   #   #         # # #   #       # # # #     #
+# # #####   # ######### ### ### ####### # # #######
+# # #           #     #   #     #     #   #       #
+# # ###      ## # ######  # ####### # ########### #
+# #   #       # #   #     # #       # #   #     # #
+# ### ##     ## # #   ##### ### ##### # ### ### # #
+# #   #     #   # # #       #   #   #   #   #   # #
+# # ### ### # ### # #      ## ### #  ## # ### ### #
+# #     #   # #   # #         #   #   # #   #     #
+# ### ####### # ### #      ##   ##### ##### ##### #
+# #   #       #   # #     #   # #           #   # #
+# ##### ########  # ##### # ### # ##     ###### # #
+#     # # #   #   #     # #   # #         #     # #
+##### # # # # # ### ##### ### # ###       ### ### #
+#   # # #   #   # #       #   #   #   # #     #   #
+# # # # # ####### ############### # ### ####### ###
+# #     #                         #   #          2#";
+
     }
 }
